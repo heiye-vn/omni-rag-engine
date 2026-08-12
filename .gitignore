@@ -1,0 +1,46 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+*.egg-info
+*.spec
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Package managers & local wheels
+.uv-cache/
+wheels/
+*.whl
+
+# Local Vector Databases & Data Storage (本地生成的向量库与持久化数据)
+*_fallback_db/
+*_db/
+tests_chroma_db/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE & AI Tool configurations
+.workbuddy/
+.vscode/
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Logs & Test caches
+*.log
+logs/
+.pytest_cache/
+.coverage
+htmlcov/
