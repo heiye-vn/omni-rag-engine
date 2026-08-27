@@ -28,11 +28,13 @@ tests_chroma_db/
 *.db
 *.sqlite
 *.sqlite3
+data/
 
 # IDE & AI Tool configurations
 .workbuddy/
 .vscode/
 .idea/
+.mimosa/
 
 # OS specific files
 .DS_Store

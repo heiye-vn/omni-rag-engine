@@ -12,7 +12,7 @@ from app.parsers.csv import CSVParser
 from app.parsers.json import JSONParser
 from app.parsers.image import ImageParser
 from app.parsers.audio import AudioParser
-from app.parsers.vedio import VideoParser
+from app.parsers.video import VideoParser
 
 
 # 文件扩展名 → 解析器类型映射表
