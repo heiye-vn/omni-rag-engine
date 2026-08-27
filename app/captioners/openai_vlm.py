@@ -1,6 +1,9 @@
 import base64
+import ipaddress
 import json
 import os
+import socket
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -35,6 +38,25 @@ class OpenAICaptioner(BaseCaptioner):
         base64_url = self._to_data_url(image_input)
 
         url = f"{self.base_url}/chat/completions"
+
+        # ---------------- 内联 SSRF 防护（协议白名单 + 解析后 IP 边界校验）----------------
+        # 云端服务端点默认要求公网地址，内网网关场景可通过 RAG_ALLOW_PRIVATE_URLS=true 放行
+        _parsed = urllib.parse.urlparse(url)
+        if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
+            raise ValueError(f"不支持的出站地址 (仅允许 http/https): {url!r}")
+        if os.getenv("RAG_ALLOW_PRIVATE_URLS", "").strip().lower() not in ("1", "true", "yes"):
+            for _info in socket.getaddrinfo(_parsed.hostname, None):
+                _ip = ipaddress.ip_address(_info[4][0])
+                if (
+                    _ip.is_loopback
+                    or _ip.is_private
+                    or _ip.is_link_local
+                    or _ip.is_reserved
+                    or _ip.is_multicast
+                    or _ip.is_unspecified
+                ):
+                    raise ValueError(f"拒绝请求受限网络地址 ({_ip})")
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

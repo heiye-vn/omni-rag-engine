@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import re
 from typing import Any
 
 from .base import BaseVectorStore, Document
@@ -20,8 +21,10 @@ class ChromaStore(BaseVectorStore):
         collection_name: str = "omni_rag_collection",
         embeddings: Any | None = None,
     ):
+        # 集合名属于外部可控输入，在构造边界即做字符白名单净化，
+        # 确保后续所有落盘拼接都不可能携带路径分隔符或父目录引用
         self.persist_directory = persist_directory
-        self.collection_name = collection_name
+        self.collection_name = re.sub(r"[^A-Za-z0-9._-]", "_", str(collection_name)).strip("._") or "omni_rag_collection"
         self.embeddings = embeddings or EmbeddingsFactory.get_embeddings()
 
     def add_documents(self, documents: list[Document], **kwargs: Any) -> Any:
@@ -58,8 +61,18 @@ class ChromaStore(BaseVectorStore):
 
     def _fallback_add_documents(self, documents: list[Document]) -> str:
         """纯 Python 零依赖本地快照存储降级"""
-        os.makedirs(self.persist_directory, exist_ok=True)
-        dump_path = os.path.join(self.persist_directory, f"{self.collection_name}.json")
+        # 三重防穿越：白名单净化 ➔ 显式拒绝分隔符与父目录引用 ➔ realpath 目录包含校验
+        safe_collection = re.sub(r"[^A-Za-z0-9._-]", "_", str(self.collection_name)).strip("._")
+        safe_collection = safe_collection or "omni_rag_collection"
+        if ".." in safe_collection or "/" in safe_collection or "\\" in safe_collection:
+            raise ValueError(f"非法的集合名: {self.collection_name!r}")
+        allowed_real = os.path.realpath(self.persist_directory)
+        dump_real = os.path.realpath(os.path.join(allowed_real, f"{safe_collection}.json"))
+        if os.path.dirname(dump_real) != allowed_real:
+            raise ValueError("非法的快照存储路径，已越出目标目录")
+
+        os.makedirs(allowed_real, exist_ok=True)
+        dump_path = dump_real
 
         texts = [doc.page_content for doc in documents]
         vecs = self.embeddings.embed_documents(texts)
@@ -85,7 +98,16 @@ class ChromaStore(BaseVectorStore):
         return dump_path
 
     def _fallback_similarity_search(self, query: str, k: int = 4) -> list[Document]:
-        dump_path = os.path.join(self.persist_directory, f"{self.collection_name}.json")
+        # 三重防穿越：白名单净化 ➔ 显式拒绝分隔符与父目录引用 ➔ realpath 目录包含校验
+        safe_collection = re.sub(r"[^A-Za-z0-9._-]", "_", str(self.collection_name)).strip("._")
+        safe_collection = safe_collection or "omni_rag_collection"
+        if ".." in safe_collection or "/" in safe_collection or "\\" in safe_collection:
+            raise ValueError(f"非法的集合名: {self.collection_name!r}")
+        allowed_real = os.path.realpath(self.persist_directory)
+        dump_path = os.path.realpath(os.path.join(allowed_real, f"{safe_collection}.json"))
+        if os.path.dirname(dump_path) != allowed_real:
+            raise ValueError("非法的快照存储路径，已越出目标目录")
+
         if not os.path.exists(dump_path):
             return []
 

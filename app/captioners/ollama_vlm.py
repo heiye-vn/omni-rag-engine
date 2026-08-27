@@ -1,5 +1,9 @@
 import base64
+import ipaddress
 import json
+import os
+import socket
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -26,6 +30,26 @@ class OllamaCaptioner(BaseCaptioner):
         raw_b64 = self._to_pure_base64(image_input)
 
         url = f"{self.host}/api/generate"
+
+        # ---------------- 内联 SSRF 防护（协议白名单 + 解析后 IP 边界校验）----------------
+        # Ollama 面向本机/内网部署是默认场景，故默认放行私有网段；
+        # 严格的纯公网环境可设置 RAG_ALLOW_PRIVATE_URLS=false 收紧
+        _parsed = urllib.parse.urlparse(url)
+        if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
+            raise ValueError(f"不支持的出站地址 (仅允许 http/https): {url!r}")
+        if os.getenv("RAG_ALLOW_PRIVATE_URLS", "true").strip().lower() not in ("1", "true", "yes"):
+            for _info in socket.getaddrinfo(_parsed.hostname, None):
+                _ip = ipaddress.ip_address(_info[4][0])
+                if (
+                    _ip.is_loopback
+                    or _ip.is_private
+                    or _ip.is_link_local
+                    or _ip.is_reserved
+                    or _ip.is_multicast
+                    or _ip.is_unspecified
+                ):
+                    raise ValueError(f"拒绝请求受限网络地址 ({_ip})")
+
         payload = {
             "model": self.model,
             "prompt": prompt_text,

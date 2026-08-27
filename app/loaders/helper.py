@@ -29,6 +29,9 @@ def load_batch(
 
     # 0. 支持网络与 OSS 远程 URL (http:// 或 https://)
     if target_str.startswith(("http://", "https://")):
+        import ipaddress
+        import os
+        import socket
         import tempfile
         import urllib.request
         from urllib.parse import unquote, urlparse
@@ -38,6 +41,28 @@ def load_batch(
         url_path = unquote(parsed_url.path)
         filename = Path(url_path).name or "downloaded_file"
         suffix = Path(filename).suffix or ".jpg"
+
+        # ---------------- 内联 SSRF 防护（协议白名单 + 解析后 IP 边界校验）----------------
+        _parsed = urlparse(target_str)
+        if _parsed.scheme not in ("http", "https") or not _parsed.hostname:
+            raise ValueError(f"不支持的下载地址 (仅允许 http/https): {target_str!r}")
+
+        # 默认拒绝解析到内网/回环/链路本地等受限地址段的目标；
+        # 内网部署场景可通过 RAG_ALLOW_PRIVATE_URLS=true 显式放行
+        if os.getenv("RAG_ALLOW_PRIVATE_URLS", "").strip().lower() not in ("1", "true", "yes"):
+            for _info in socket.getaddrinfo(_parsed.hostname, None):
+                _ip = ipaddress.ip_address(_info[4][0])
+                if (
+                    _ip.is_loopback
+                    or _ip.is_private
+                    or _ip.is_link_local
+                    or _ip.is_reserved
+                    or _ip.is_multicast
+                    or _ip.is_unspecified
+                ):
+                    raise ValueError(
+                        f"拒绝请求受限网络地址 ({_ip})：如需访问内网资源请设置 RAG_ALLOW_PRIVATE_URLS=true"
+                    )
 
         req = urllib.request.Request(
             target_str,

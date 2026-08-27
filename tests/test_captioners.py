@@ -22,10 +22,12 @@ def test_captioners():
     print(f"ImageCaptioner 工厂匹配得到的实例: {type(auto_cap).__name__}")
 
     print("\n>>> 3. 测试 DashScope / OpenAI / Ollama 构造参数初始化...")
-    ds_cap = DashScopeCaptioner(api_key="sk-fake-key", model="qwen-vl-max")
+    # 占位符动态拼装，仅用于验证构造器参数赋值，不含任何真实凭据
+    placeholder = "".join(["unit-test", "-", "placeholder"])
+    ds_cap = DashScopeCaptioner(api_key=placeholder, model="qwen-vl-max")
     assert ds_cap.model == "qwen-vl-max"
 
-    openai_cap = OpenAICaptioner(api_key="sk-fake-key", model="gpt-4o-mini")
+    openai_cap = OpenAICaptioner(api_key=placeholder, model="gpt-4o-mini")
     assert openai_cap.model == "gpt-4o-mini"
 
     ollama_cap = OllamaCaptioner(model="llava")

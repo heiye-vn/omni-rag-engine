@@ -1,5 +1,8 @@
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def load_env_file(env_path: str | Path | None = None) -> None:
@@ -34,8 +37,9 @@ def load_env_file(env_path: str | Path | None = None) -> None:
                 # 不覆盖已手动设置的环境变量
                 if key and key not in os.environ:
                     os.environ[key] = val
-    except Exception:
-        pass
+    except Exception as e:
+        # .env 加载失败不应阻断启动，但必须留下可排查的日志
+        logger.warning("加载 .env 配置文件失败 (%s): %s", path, e)
 
 
 # 模块导入时自动加载 .env 变量

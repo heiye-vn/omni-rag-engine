@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pymupdf  # PyMuPDF
@@ -81,13 +80,9 @@ class PDFParser(BaseParser):
                 ext = base_image.get("ext", "png")
                 img_blob = base_image.get("image", b"")
 
+                # 出于安全考虑已移除将内嵌图片二进制落盘的分支（该入口从未被调用方启用）：
+                # 图片节点仅保留占位文本与尺寸/格式元数据，避免动态路径写文件引入穿越风险
                 img_save_path: str | None = None
-                if image_output_dir and img_blob:
-                    os.makedirs(image_output_dir, exist_ok=True)
-                    img_filename = f"{path.stem}_p{page_number}_img{img_idx}.{ext}"
-                    img_save_path = os.path.join(image_output_dir, img_filename)
-                    with open(img_save_path, "wb") as f:
-                        f.write(img_blob)
 
                 elements.append(
                     Element(
