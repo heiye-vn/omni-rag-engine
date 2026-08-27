@@ -32,10 +32,11 @@ app/
 ├── chunkers/       # 6. 智能文本切块与重叠策略 (语义/固定长度/标题层级)
 ├── enrichers/      # 7. 上下文增强与元数据补充
 ├── vectorstores/   # 8. 向量数据库适配器 (Chroma, Milvus, Qdrant, PgVector)
-├── config.py       # 系统配置管理 (读取环境变量)
+├── config.py       # 系统配置管理 (自研 .env 加载器，读取环境变量)
 ├── factory.py      # 解析器自动路由工厂 (ParserFactory)
-├── models.py       # Pydantic 核心数据模型与 Schema 统一定义
-└── main.py         # FastAPI Web 应用入口与 API 路由
+├── models.py       # 核心数据模型 (Location / Element / ParsedDocument dataclass)
+├── server.py       # FastAPI Web 微服务入口 (/api/v1 RESTful API)
+└── main.py         # CLI 批量解析演示入口
 ```
 
 ---
@@ -45,7 +46,8 @@ app/
 在为此仓库生成或修改代码时，Agent 必须严格遵守以下规则：
 
 ### 3.1 类型安全与数据模型 (Type Safety & Schemas)
-* **严禁裸字典传递**：所有跨模块传递的解析节点、切块数据、元数据，必须严格使用 `app/models.py` 中定义的 Pydantic 数据模型（如 `ParsedElement`, `ChunkNode` 等）。
+* **核心跨模块数据模型**：所有跨模块传递的解析节点、切块数据、元数据，必须严格使用 `app/models.py` 中定义的 dataclass 数据模型：`Location`（物理定位）、`Element`（语义节点）、`ParsedDocument`（完整文档容器）。切块产物统一导出为 LangChain `Document`（含 `page_content` 与 `metadata`）。
+* **Pydantic 仅用于 API 边界**：Pydantic v2 模型只允许出现在 `app/server.py` 的请求/响应 Schema 定义中，不得替代内部 dataclass 数据流。
 * **全面使用类型注解**：方法与函数签名必须显式声明输入与返回值类型。
 
 ### 3.2 物理定位元数据保护 (Location Grounding)
@@ -75,7 +77,10 @@ app/
 uv sync
 
 # 2. 启动 FastAPI 本地开发服务
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.server:app --reload --host 0.0.0.0 --port 8000
+
+# 2.1 运行 CLI 批量解析演示 (单文件/目录/压缩包)
+uv run app/main.py examples/
 
 # 3. 运行项目测试套件
 uv run pytest

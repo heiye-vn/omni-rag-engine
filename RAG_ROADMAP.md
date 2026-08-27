@@ -11,7 +11,7 @@
   - [x] Office 三大件解析 ([docx.py](app/parsers/docx.py), [xlsx.py](app/parsers/xlsx.py), [pptx.py](app/parsers/pptx.py))
   - [x] PDF 文档解析 ([pdf.py](app/parsers/pdf.py))
   - [x] 网页与结构化数据解析 ([html.py](app/parsers/html.py), [csv.py](app/parsers/csv.py), [json.py](app/parsers/json.py))
-  - [x] 图片与音视频解析 ([image.py](app/parsers/image.py), [audio.py](app/parsers/audio.py), [vedio.py](app/parsers/vedio.py))
+  - [x] 图片与音视频解析 ([image.py](app/parsers/image.py), [audio.py](app/parsers/audio.py), [video.py](app/parsers/video.py))
   - [x] 基于扩展名自动路由的解析工厂 ([factory.py](app/factory.py))
 - [x] **1.2 流式与网络加载器 (Stream & HTTP/OSS Loaders)**
   - [x] 支持通过 HTTP / HTTPS / 阿里云 OSS 远程 URL 直接加载文件进行解析与多模态大模型识别
@@ -183,7 +183,8 @@
   - [ ] `POST /api/v1/auth/sso/callback`: 企微 / 飞书 / 钉钉 / OAuth2 企业单点登录 (SSO) 对接
   - [ ] `GET /api/v1/auth/me`: 获取当前登录用户信息、可切换租户与权限角色
 - [ ] **9.1 文档解析、上传与生命周期 CRUD API 子系统 (`/api/v1/documents/*`)**
-  - [ ] `POST /api/v1/documents/parse-and-chunk`: 上传本地文件/压缩包并返回结构化切片
+  - [x] `POST /api/v1/documents/parse`: 上传本地文件/压缩包，返回结构化语义节点列表（含 Location 物理定位）
+  - [x] `POST /api/v1/documents/parse-and-chunk`: 上传本地文件/压缩包并返回结构化切片
   - [ ] `POST /api/v1/documents/parse-url`: 解析远程 HTTP / 阿里云 OSS 文件 URL
   - [ ] `GET /api/v1/knowledge-bases/{kb}/documents`: 分页查询文档列表（支持状态过滤、关键词搜索与排序）
   - [ ] `GET /api/v1/documents/{doc_id}`: 获取单条文档的元数据与解析概览
@@ -199,9 +200,9 @@
 - [ ] **9.3 原文档在线预览与原文几何高亮定位 API 子系统 (`/api/v1/grounding/*`)**
   - [ ] `GET /api/v1/documents/{doc_id}/raw-stream`: 获取原文档 Preview 二进制文件流 (用于 pdfjs 渲染)
   - [ ] `GET /api/v1/chunks/{chunk_id}/grounding-location`: 获取切片的页码、物理坐标 `bbox`、行号与 DOM Selector (用于前端高亮发光框定位)
-- [ ] **9.4 向量知识库持久化与检索 API 子系统 (`/api/v1/knowledge-bases/*`)**
-  - [ ] `POST /api/v1/knowledge-bases/{kb}/ingest`: 一键导入文档并持久化写入向量库
-  - [ ] `POST /api/v1/knowledge-bases/{kb}/search`: 混合相似度向量检索
+- [x] **9.4 向量知识库持久化与检索 API 子系统 (`/api/v1/knowledge-bases/*`)**
+  - [x] `POST /api/v1/knowledge-bases/{kb}/ingest`: 一键导入文档切块并持久化写入向量库 (chroma/faiss/milvus/pgvector/qdrant)
+  - [x] `POST /api/v1/knowledge-bases/{kb}/search`: Top-K 向量相似度检索 (混合多路召回见 7.1 规划)
 - [ ] **9.5 RAG 检索问答与 SSE 打字机流式 API 子系统 (`/api/v1/chat/*`)**
   - [ ] `POST /api/v1/chat/completions/stream`: SSE (Server-Sent Events) 打字机流式问答 (兼容 Vercel AI SDK `useChat`)
 - [ ] **9.4 租户隔离、大文件直传与生命周期 API 子系统**
@@ -238,7 +239,8 @@ Phase 1: 核心算力与引擎构建 [已完成] ➔ Phase 2: FastAPI Web 服务
 * **✅ Phase 1: 核心算力与数据预处理引擎构建（已完成）**
   * 完成 37+ 格式解析器、`CleanerPipeline` 清洗、`AutoChunker` 切块、多模态 Caption/OCR、5 大向量库适配器与 `inspect_store` 可视化看盘。
 * **🚩 Phase 2: FastAPI Web 服务化与开箱即用 API 封装（当前正在推进）**
-  * 在当前项目下扩展 `app/server.py` 与 `app/api/`，封装基本解析 (`/documents/parse`)、向量写入 (`/ingest`) 和 SSE 打字机流式问答 API (`/chat/completions/stream`)。
+  * ✅ 基础服务层已上线：[app/server.py](app/server.py) 提供 `/health`、文档解析 (`/documents/parse`)、智能切块 (`/documents/parse-and-chunk`)、知识库入库与 Top-K 检索 (`/knowledge-bases/{kb}/ingest|search`) 五组 RESTful 接口，附 OpenAPI Swagger 文档。
+  * 待推进：远程 URL 解析接口、SSE 打字机流式问答 API (`/chat/completions/stream`)。
   * 对接 React 前端 (`Vercel AI SDK / useChat`) 验证效果。
 * **🎯 Phase 3: 检索优化、Rerank 重排与多路召回（算法增强）**
   * 引入 BGE-Reranker 交叉编码器，实现 Dense + Sparse (BM25) 混合检索与 RRF 融合打分。

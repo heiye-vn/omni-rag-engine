@@ -42,8 +42,8 @@
 * 🗄️ **主流向量数据库原生适配**
   原生集成 **ChromaDB**、**Milvus**、**Qdrant**、**PGVector** 与 **FAISS**，支持平滑降级与一键切片落盘。
 
-* ⚡ **生产级 FastAPI 微服务 & Docker 部署**
-  提供开箱即用的 RESTful API 接口，并配备完整 Dockerfile 及 Docker Compose 一键启动依赖基础设施。
+* ⚡ **FastAPI 微服务 & Docker 一键部署**
+  内置开箱即用的 RESTful API（文件解析、智能切块、知识库入库、相似度检索），并配备完整 Dockerfile 及 Docker Compose 一键启动依赖基础设施；SSE 流式问答接口规划中（见 Roadmap Phase 2）。
 
 ---
 
@@ -56,10 +56,10 @@ flowchart TD
     C --> D[CleanerPipeline 数据清洗与 PII 脱敏]
     D --> E[ContextPrefixInjector & TableEnhancer 语义增强]
     E --> F[AutoChunker 智能切块路由]
-    F --> G[ChunkNode 携带 Location 节点]
+    F --> G[LangChain Document 切片 + Location 元数据]
     G --> H[VectorStore 向量库适配器]
-    H --> I[(Chroma / Milvus / Qdrant / PgVector)]
-    G --> J[FastAPI API 路由服务]
+    H --> I[(Chroma / FAISS / Milvus / Qdrant / PgVector)]
+    G --> J[FastAPI 微服务 /api/v1]
 ```
 
 ---
@@ -88,9 +88,43 @@ cp .env.example .env
 
 #### 3. 启动 FastAPI 微服务
 ```bash
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.server:app --reload --host 0.0.0.0 --port 8000
 ```
 访问 http://localhost:8000/docs 即可在线测试交互式 OpenAPI (Swagger) 文档。
+
+#### 4. （可选）启用真实向量库与大模型
+向量数据库客户端属于可选依赖组，按需安装：
+```bash
+# 安装全部向量数据库客户端 (Chroma / FAISS / Milvus / Qdrant / PGVector)
+uv sync --extra vectordb
+
+# 安装阿里百炼 DashScope 真实 Embedding 与 Qwen-VL 图文理解
+uv sync --extra dashscope
+```
+未安装任何客户端或未配置 API Key 时，引擎自动降级为零依赖的本地 JSON 快照存储与 Mock 向量，保证功能链路始终可跑通。
+
+### 核心 API 一览
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/health` | 服务健康检查探针 |
+| POST | `/api/v1/documents/parse` | 上传文件，返回结构化语义节点（含物理定位） |
+| POST | `/api/v1/documents/parse-and-chunk` | 上传文件，一键解析 ➔ 清洗 ➔ 智能切块 |
+| POST | `/api/v1/knowledge-bases/{kb}/ingest` | 文档切块后写入指定知识库向量库 |
+| POST | `/api/v1/knowledge-bases/{kb}/search` | 对知识库发起 Top-K 相似度检索 |
+
+curl 示例：
+```bash
+# 解析并切块
+curl -X POST http://localhost:8000/api/v1/documents/parse-and-chunk \
+  -F "file=@examples/test.md" -F "strategy=auto"
+
+# 写入知识库并检索
+curl -X POST http://localhost:8000/api/v1/knowledge-bases/demo/ingest -F "file=@examples/test.md"
+curl -X POST http://localhost:8000/api/v1/knowledge-bases/demo/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "切块策略", "k": 3}'
+```
 
 ---
 
@@ -123,8 +157,9 @@ omni-rag-engine/
 │   ├── vectorstores/   # 向量数据库适配器 (Chroma/Milvus/Qdrant/PgVector)
 │   ├── config.py       # 系统配置与环境变量自动加载器
 │   ├── factory.py      # 解析器自动路由工厂
-│   ├── models.py       # Pydantic 核心数据模型统一定义
-│   └── main.py         # FastAPI Web 微服务入口
+│   ├── models.py       # 核心数据模型 (Location / Element / ParsedDocument)
+│   ├── server.py       # FastAPI 微服务入口 (/api/v1 RESTful API)
+│   └── main.py         # CLI 批量解析演示入口
 ├── tests/              # 单元测试与集成测试套件
 ├── Dockerfile          # 容器构建描述文件
 ├── docker-compose.yml  # 多服务集群编排文件
