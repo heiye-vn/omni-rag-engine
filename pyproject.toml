@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "docling>=2.119.0",
+    "fastapi>=0.115.0",
     "ffmpeg-python>=0.2.0",
     "markdown-it-py>=4.2.0",
     "openai-whisper>=20250625",
@@ -14,13 +15,47 @@ dependencies = [
     "paddlepaddle>=3.3.1",
     "pandas>=3.0.5",
     "pillow>=12.3.0",
+    "pydantic>=2.9.0",
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
+    "python-multipart>=0.0.17",
     "python-pptx>=1.0.2",
+    "uvicorn>=0.32.0",
 ]
 
-[[tool.uv.index]]
-name = "local-wheels"
-url = "./wheels"
-format = "flat"
+[project.optional-dependencies]
+# 向量数据库客户端与 LangChain 桥接 (未安装时适配器自动降级为本地 JSON 快照存储)
+vectordb = [
+    "chromadb>=0.5.0",
+    "faiss-cpu>=1.9.0",
+    "langchain-community>=0.3.0",
+    "langchain-core>=0.3.0",
+    "pgvector>=0.3.0",
+    "pymilvus>=2.4.0",
+    "qdrant-client>=1.12.0",
+]
+# 阿里百炼 DashScope 真实 Embedding 与 Qwen-VL 视觉理解
+dashscope = [
+    "dashscope>=1.20.0",
+]
+
+# 开发与测试工具链 (uv sync 默认安装 dev 组)
+[dependency-groups]
+dev = [
+    "httpx>=0.27.0",
+    "pytest>=8.3.0",
+]
+
+# 构建系统：使 uv sync 将本项目以可编辑模式装入虚拟环境，保证 `import app` 全局可用
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+# 允许在项目根目录直接运行 pytest（不依赖虚拟环境内的包安装）
+pythonpath = ["."]
+testpaths = ["tests"]
 
