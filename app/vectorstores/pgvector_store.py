@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from .base import BaseVectorStore, Document
@@ -6,20 +7,26 @@ from .base import BaseVectorStore
 from .chroma_store import ChromaStore
 from .embeddings import EmbeddingsFactory
 
+# 与 docker-compose.yml 中 pgvector 服务一致的连接串（库名 omni_rag / 密码 postgrespassword）
+DEFAULT_PGVECTOR_DSN = "postgresql+psycopg://postgres:postgrespassword@localhost:5432/omni_rag"
+
 
 class PGVectorStore(BaseVectorStore):
     """
     PostgreSQL (pgvector 插件) 企业向量存储适配器：
     直接利用企业已有 PostgreSQL 关系型数据库，实现 SQL 逻辑与向量语义无缝 JOIN 混查。
+
+    连接串优先级：显式入参 > env DATABASE_URL（与任务状态持久化共用同一实例）> 默认值。
+    说明：默认库名必须与 docker-compose 中实际创建的库保持一致，否则会静默降级到本地快照。
     """
 
     def __init__(
         self,
-        connection_string: str = "postgresql+psycopg://postgres:postgres@localhost:5432/rag_db",
+        connection_string: str | None = None,
         collection_name: str = "omni_rag_pgvector",
         embeddings: Any | None = None,
     ):
-        self.connection_string = connection_string
+        self.connection_string = connection_string or os.environ.get("DATABASE_URL") or DEFAULT_PGVECTOR_DSN
         self.collection_name = collection_name
         self.embeddings = embeddings or EmbeddingsFactory.get_embeddings()
 
