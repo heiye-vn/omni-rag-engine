@@ -4,22 +4,27 @@ version = "0.1.0"
 description = "全模态企业级 RAG 基础设施引擎（多源解析/数据清洗/智能切块/多模态图文理解/向量检索与 FastAPI 微服务）"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.19.2",
     "beautifulsoup4>=4.15.0",
     "docling>=2.119.0",
     "fastapi>=0.115.0",
     "ffmpeg-python>=0.2.0",
     "markdown-it-py>=4.2.0",
+    "minio>=7.2.0",
     "openai-whisper>=20250625",
     "openpyxl>=3.1.5",
     "paddleocr>=3.7.0",
     "paddlepaddle>=3.3.1",
     "pandas>=3.0.5",
     "pillow>=12.3.0",
+    "psycopg[binary]>=3.2.0",
     "pydantic>=2.9.0",
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
     "python-multipart>=0.0.17",
     "python-pptx>=1.0.2",
+    "slowapi>=0.1.10",
+    "sqlalchemy>=2.0.0",
     "uvicorn>=0.32.0",
 ]
 

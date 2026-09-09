@@ -17,6 +17,26 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      # 任务状态持久化：复用下方 pgvector 服务所在的 PostgreSQL 实例
+      # (容器内使用服务名 pgvector 作为主机名；库名/账号与 pgvector 服务保持一致)
+      - JOB_STORE_BACKEND=database
+      - DATABASE_URL=postgresql+psycopg://postgres:postgrespassword@pgvector:5432/omni_rag
+      # 设为 1 可在数据库不可用时直接拒绝启动，避免静默回退内存导致状态丢失
+      - JOB_STORE_STRICT=0
+      # 大体积任务 result 走对象存储：MinIO 容器内默认 endpoint 为 minio:9000
+      - OBJECT_STORE_BACKEND=minio
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=omni-rag-objects
+      - MINIO_SECURE=0
+      # API Key 鉴权（生产环境必须设 AUTH_ENABLED=1 并配置 API_KEYS；
+      # 这里默认 0 方便本地起容器即用，生产请通过 .env 文件覆盖）
+      - AUTH_ENABLED=${AUTH_ENABLED:-0}
+      - API_KEYS=${API_KEYS:-}
+      # 限流
+      - RATE_LIMIT_DEFAULT=60/minute
+      - RATE_LIMIT_UPLOAD=10/hour
     volumes:
       - ./app:/app/app
       - omni_rag_data:/app/data
@@ -27,6 +47,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   # ----------------------------------------------------------------------------
   # 2. Qdrant: 高性能向量数据库 (Vector Database)
@@ -74,8 +98,48 @@ services:
     volumes:
       - redis_data:/data
 
+  # ----------------------------------------------------------------------------
+  # 5. MinIO: S3 兼容对象存储，承载大体积任务 result
+  # ----------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: omni_rag_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # 管理控制台 (浏览器)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 6. MinIO Init: 一次性创建项目所需 bucket（无依赖重启策略）
+  # ----------------------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: omni_rag_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/omni-rag-objects &&
+      mc anonymous set none local/omni-rag-objects &&
+      echo 'MinIO bucket omni-rag-objects 已就绪'
+      "
+
 volumes:
   omni_rag_data:
   qdrant_storage:
   pgvector_data:
   redis_data:
+  minio_data:
