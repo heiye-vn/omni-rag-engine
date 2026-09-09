@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/*
+ * omni-rag-engine 控制台设计令牌 —— 方案 A「墨青」
+ * 主色：深青绿（引擎/数据感）  点缀：琥珀金（CTA/指标高亮）
+ * 底色：暖纸白  正文：墨色  全站纯色平涂，无渐变
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", monospace;
+}
+
+@theme {
+  /* 品牌色：墨青 ramp（600 为主色） */
+  --color-brand-50: #e1f5ee;
+  --color-brand-100: #c3ece0;
+  --color-brand-200: #9fe1cb;
+  --color-brand-300: #5dcaa5;
+  --color-brand-400: #2bb389;
+  --color-brand-500: #1d9e75;
+  --color-brand-600: #0f6e56;
+  --color-brand-700: #0c5c49;
+  --color-brand-800: #085041;
+  --color-brand-900: #04342c;
+  --color-brand-950: #02241e;
+
+  /* 点缀色：琥珀 ramp（600 为 CTA） */
+  --color-accent-50: #faeeda;
+  --color-accent-100: #f6ddba;
+  --color-accent-200: #fac775;
+  --color-accent-300: #ef9f27;
+  --color-accent-400: #d9871a;
+  --color-accent-500: #c46f10;
+  --color-accent-600: #ba7517;
+  --color-accent-700: #8a5510;
+  --color-accent-800: #633806;
+  --color-accent-900: #412402;
+
+  /* 中性色：暖石灰（替代冷灰 neutral） */
+  --color-paper: #faf9f7;
+  --color-ink: #1c1917;
+}
+
+:root {
+  --background: #faf9f7;
+  --foreground: #1c1917;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.6;
+}
+
+/* 全局滚动条：细窄暖灰，融入纸感底色 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 数字与指标统一等宽 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

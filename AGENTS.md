@@ -32,8 +32,10 @@ app/
 ├── chunkers/       # 6. 智能文本切块与重叠策略 (语义/固定长度/标题层级)
 ├── enrichers/      # 7. 上下文增强与元数据补充
 ├── vectorstores/   # 8. 向量数据库适配器 (Chroma, Milvus, Qdrant, PgVector)
+├── storage/        # 9. 状态持久化层 (SQLAlchemy 引擎 / ORM 模型 / job_records 仓储)
 ├── config.py       # 系统配置管理 (自研 .env 加载器，读取环境变量)
 ├── factory.py      # 解析器自动路由工厂 (ParserFactory)
+├── jobs.py         # 异步任务状态机 + 存储后端路由 (内存 / 数据库，env JOB_STORE_BACKEND)
 ├── models.py       # 核心数据模型 (Location / Element / ParsedDocument dataclass)
 ├── server.py       # FastAPI Web 微服务入口 (/api/v1 RESTful API)
 └── main.py         # CLI 批量解析演示入口
@@ -62,7 +64,14 @@ app/
 * **隐私脱敏链条**：解析出的文本必须经过 `CleanerPipeline`，防范控制字符乱码以及敏感隐私（手机号、身份证、邮箱等）。
 * **敏感信息隔离**：绝不将真实 `.env` 密钥或本地向量库持久化目录（如 `*_fallback_db/`）提交至 Git 仓库（需由 `.gitignore` 约束）。
 
-### 3.4 异常处理与工程规范
+### 3.4 状态持久化与降级可观测 (Persistence & Fallback)
+* **持久化统一走仓储层**：任务状态等需要落库的数据，必须通过 `app/storage/` 的仓储类访问，
+  禁止在业务代码里直接拼接 SQL 或硬编码连接串——连接串统一取自 env `DATABASE_URL`。
+* **禁止静默降级**：任何"依赖不可用则回退"的分支（`vectorstores` 的本地快照、
+  `jobs` 的内存后端）必须打印 ERROR 级日志，并提供 `JOB_STORE_STRICT` 之类的严格开关；
+  生产环境开启严格模式，禁止无声切换到内存或本地快照。
+
+### 3.5 异常处理与工程规范
 * **注释规范**：业务逻辑代码采用**纯中文**注释，方法名/变量名/属性保持**纯英文**。
 * **优雅降级 (Fallback)**：向量数据库适配器或外部模型服务不可用时，必须实现友好的回退逻辑与标准错误日志输出。
 
