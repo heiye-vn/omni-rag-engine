@@ -1,0 +1,207 @@
+# omni-rag-engine 检索层评估 · 黄金集
+#
+# 设计依据：eval-design.md §3
+# 核心原则：标注「原文区间」而非 chunk_id —— 一套标注可评所有切块策略
+# 文件冻结：本语料与标注一旦定稿不再修改，否则历史报告的行号将失效
+
+meta:
+  name: rag-pipeline-notes
+  document: tests/eval/corpus/rag-pipeline-notes.md
+  eval_target: chunking_strategy
+  location_kind: line_range
+  top_k: 5
+  note: >-
+    单文档自评集，用于裁决切块策略（M1 只跑 sliding_window 与 header_aware）。
+    行号对应 tests/eval/corpus/rag-pipeline-notes.md，该文件为冻结语料。
+
+queries:
+  # ---------------------------------------------------------------- fact（单点事实，预期小块占优）
+  - id: q001
+    type: fact
+    expected_advantage: sliding_window
+    query: "chunk_overlap 的默认值是多少"
+    answer_spans:
+      - start_line: 17
+        end_line: 18
+    rationale: "答案落在参数表中单行，考察最小粒度的事实召回"
+
+  - id: q002
+    type: fact
+    expected_advantage: sliding_window
+    query: "判断两条文本重复时使用的海明距离阈值是多少"
+    answer_spans:
+      - start_line: 68
+        end_line: 68
+      - start_line: 136
+        end_line: 136
+    rationale: "同一事实同时出现在正文与环境变量表中，是多区间标注用例，考察块能否覆盖到两处之一"
+
+  - id: q003
+    type: fact
+    expected_advantage: sliding_window
+    query: "text-embedding-v3 这个嵌入模型的向量维度是多少"
+    answer_spans:
+      - start_line: 109
+        end_line: 109
+    rationale: "表格单元格内的单值事实"
+
+  - id: q004
+    type: fact
+    expected_advantage: sliding_window
+    query: "那个不需要 API、可以在本地运行的嵌入模型是多少维"
+    answer_spans:
+      - start_line: 108
+        end_line: 108
+    rationale: "同义改写式提问（不提模型名），顺带考察 embedding 语义能力"
+
+  - id: q005
+    type: fact
+    expected_advantage: sliding_window
+    query: "默认检索返回条数是多少"
+    answer_spans:
+      - start_line: 135
+        end_line: 135
+    rationale: "环境变量表中的单值事实"
+
+  - id: q006
+    type: fact
+    expected_advantage: sliding_window
+    query: "上下文嵌入配合重排序模型可以把检索失败率降低多少"
+    answer_spans:
+      - start_line: 88
+        end_line: 88
+    rationale: "长段落中的两个百分比数字，考察块内是否被截断"
+
+  - id: q007
+    type: fact
+    expected_advantage: sliding_window
+    query: "标题层级感知切块会在元数据中记录什么字段，格式是什么样"
+    answer_spans:
+      - start_line: 38
+        end_line: 38
+    rationale: "字段名 + 格式示例都集中在同一行"
+
+  # ------------------------------------------------------------ summary（跨段落汇总，预期大块占优）
+  - id: q008
+    type: summary
+    expected_advantage: header_aware
+    query: "RAG 前处理在文档进入向量库之前，一共包含哪几个处理环节"
+    answer_spans:
+      - start_line: 1
+        end_line: 5
+    rationale: "答案在开篇总述段，考察首部内容是否被完整切出"
+
+  - id: q009
+    type: summary
+    expected_advantage: header_aware
+    query: "文档切块有哪些策略，各自分别适用什么类型的文档"
+    answer_spans:
+      - start_line: 48
+        end_line: 54
+    rationale: "需跨小节汇总，对比表是最完整的答案位置；考察块能否覆盖整张表"
+
+  - id: q010
+    type: summary
+    expected_advantage: header_aware
+    query: "数据清洗管线里包含哪几类处理"
+    answer_spans:
+      - start_line: 62
+        end_line: 78
+    rationale: "答案分散在三个子小节（不可见字符 / 去重 / 脱敏），是典型的跨段落汇总"
+
+  - id: q011
+    type: summary
+    expected_advantage: header_aware
+    query: "为什么向量检索需要建立索引，不建索引会有什么后果"
+    answer_spans:
+      - start_line: 113
+        end_line: 119
+    rationale: "成因在段首、后果在段尾，考察块是否跨段落完整"
+
+  # -------------------------------------------------------------- table（表格，预期结构化切块占优）
+  - id: q012
+    type: table
+    expected_advantage: header_aware
+    query: "三种切块策略在语义完整性和噪声风险上分别表现如何"
+    answer_spans:
+      - start_line: 50
+        end_line: 54
+    rationale: "markdown 表格整体作答，考察表格是否被从中间切断"
+
+  - id: q013
+    type: table
+    expected_advantage: header_aware
+    query: "环境变量表里都定义了哪些变量，各自默认值是多少"
+    answer_spans:
+      - start_line: 131
+        end_line: 137
+    rationale: "整张表作答，与 q009 同类但表更长，用于交叉验证表格切断率"
+
+  - id: q014
+    type: table
+    expected_advantage: header_aware
+    query: "父子块策略的块粒度是怎么描述的"
+    answer_spans:
+      - start_line: 53
+        end_line: 53
+    rationale: "表格行级检索，考察切块是否把表头和该行保在同一块内"
+
+  # ------------------------------------------------------- cross_section（跨章节，预期标题感知占优）
+  - id: q015
+    type: cross_section
+    expected_advantage: header_aware
+    query: "清洗和切块的先后顺序是怎样的，脱敏为什么必须放在向量化之前"
+    answer_spans:
+      - start_line: 58
+        end_line: 60
+      - start_line: 76
+        end_line: 78
+    rationale: "答案跨越第 2 章导语与 2.3 小节，是最能暴露块跨越章节边界的用例"
+
+  - id: q016
+    type: cross_section
+    expected_advantage: header_aware
+    query: "评价一个切块策略好不好，应该关注哪些方面"
+    answer_spans:
+      - start_line: 143
+        end_line: 143
+      - start_line: 151
+        end_line: 151
+    rationale: "答案分散在第 6 章的首条与末条误区，中间的条目与之无关，考察块边界"
+
+  - id: q017
+    type: cross_section
+    expected_advantage: header_aware
+    query: "上下文前缀注入这种方法有什么代价"
+    answer_spans:
+      - start_line: 88
+        end_line: 90
+    rationale: "做法与代价相邻但分属两段，考察段落边界处理"
+
+  # --------------------------------------------------------- paraphrase（同义改写，embedding 校准组）
+  - id: q018
+    type: paraphrase
+    expected_advantage: null
+    query: "怎么同时兼顾召回准确度和喂给模型的上下文完整度"
+    answer_spans:
+      - start_line: 28
+        end_line: 30
+    rationale: "校准组：改写自「检索精度与上下文完整性」，措辞与原文字面重合度低。若该组普遍失败，问题在 embedding 而非切块"
+
+  - id: q019
+    type: paraphrase
+    expected_advantage: null
+    query: "块离开原文之后指代不明该怎么处理"
+    answer_spans:
+      - start_line: 86
+        end_line: 88
+    rationale: "校准组：改写自「代词与省略表达会失去指代对象」"
+
+  - id: q020
+    type: paraphrase
+    expected_advantage: null
+    query: "怎样让表格里的数据在检索时也能被理解"
+    answer_spans:
+      - start_line: 92
+        end_line: 98
+    rationale: "校准组：改写自「表格结构化增强」，考察是否命中整个 3.2 小节"

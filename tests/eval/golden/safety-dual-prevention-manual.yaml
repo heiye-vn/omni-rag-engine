@@ -1,0 +1,335 @@
+# omni-rag-engine 检索层评估 · 黄金集（M2 长语料版）
+#
+# 设计依据：eval-design.md §3
+# 核心原则：标注「原文区间」而非 chunk_id —— 一套标注可评所有切块策略
+# 文件冻结：本语料与标注一旦定稿不再修改，否则历史报告的行号将失效
+
+meta:
+  name: safety-dual-prevention-manual
+  document: tests/eval/corpus/safety-dual-prevention-manual.md
+  eval_target: chunking_strategy
+  location_kind: line_range
+  top_k: 5
+  corpus_lines: 454
+  note: >-
+    M2 长语料版：语料 11835 字符 / 454 行，使各策略切片数均达同一量级
+    （sliding_window 26 块、header_aware 64 块、parent_child 58 块），
+    top_k=5 的语料覆盖率由 M1 的 62% 降至 19.2%，指标不再必然饱和。
+    仍建议配合 --k-ratio 按切片数归一化 k，以消除各策略切片数差异带来的偏向。
+
+# 结构覆盖矩阵：每条 query 注明它要考察的文档结构场景
+#   heading_depth     深层标题（####）→ 标题感知切块的层级处理
+#   long_table        长表格（9 行以上）→ 表格是否被从中间切断
+#   table_after_head  紧贴标题的表格 → 表头与该行是否同块
+#   cross_ref         跨章节引用 → 块跨越章节边界时的表现
+#   long_section      超长小节 → 滑动窗口强制切分
+#   short_section     极短小节 → 是否产生碎片块
+#   code_block        配置/代码块 → 是否被从中间切断
+#   multi_mention     同一事实多处出现 → 需用 recall 而非 Hit 才能体现
+#   faq_echo          FAQ 与正文重复表述 → 多区间标注
+
+queries:
+  # ---------------------------------------------------------- fact（9 条，预期小块占优）
+  - id: q001
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: long_table
+    query: "重大风险的色标是什么，危险性分值的下限是多少"
+    answer_spans:
+      - start_line: 119
+        end_line: 119
+    rationale: "表格行级检索。若切块把表头与数据行分离，则该行失去『色标』语义"
+
+  - id: q002
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: long_table
+    query: "一般风险的管控层级由谁负责"
+    answer_spans:
+      - start_line: 121
+        end_line: 121
+    rationale: "同表另一行，与 q001 交叉验证表格行定位能力"
+
+  - id: q003
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: multi_mention, faq_echo
+    query: "隐患整改延期原则上不能超过几次"
+    answer_spans:
+      - start_line: 184
+        end_line: 184
+      - start_line: 438
+        end_line: 438
+    rationale: "正文 4.5 与附录 C 问答重复表述同一事实，多区间标注考察 recall 而非仅 Hit"
+
+  - id: q004
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: multi_mention, faq_echo
+    query: "培训档案的保存期限是多久"
+    answer_spans:
+      - start_line: 287
+        end_line: 287
+      - start_line: 454
+        end_line: 454
+    rationale: "同 q003 的多区间结构，用于验证该模式是否稳定复现"
+
+  - id: q005
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: long_table
+    query: "主要负责人每年的培训学时不少于多少"
+    answer_spans:
+      - start_line: 281
+        end_line: 281
+    rationale: "培训频次表首行，考察表头与首个数据行是否同块"
+
+  - id: q006
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: long_table
+    query: "专职安全员每年的学时要求是多少"
+    answer_spans:
+      - start_line: 282
+        end_line: 282
+    rationale: "与 q005 同为表内相邻行，用于区分『表头同块』与『仅该行命中』"
+
+  - id: q007
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: short_section
+    query: "特殊作业时监护人离开后，作业中断超过多久需要重新确认"
+    answer_spans:
+      - start_line: 347
+        end_line: 347
+    rationale: "答案落在一个较短小节内，考察短小节是否被切成碎片块"
+
+  - id: q008
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: none
+    query: "应急预案至少多久修订一次"
+    answer_spans:
+      - start_line: 369
+        end_line: 369
+    rationale: "基础事实召回，作为对照基线"
+
+  - id: q009
+    type: fact
+    expected_advantage: sliding_window
+    coverage_intent: none
+    query: "实行作业许可管理的特殊作业包括哪几类"
+    answer_spans:
+      - start_line: 341
+        end_line: 341
+    rationale: "单句内枚举八类作业，考察块内是否被截断"
+
+  # ------------------------------------------------------ summary（5 条，预期大块占优）
+  - id: q010
+    type: summary
+    expected_advantage: header_aware
+    coverage_intent: none
+    query: "双重预防机制的运行流程包含哪些步骤"
+    answer_spans:
+      - start_line: 29
+        end_line: 31
+    rationale: "流程为单一长句枚举，考察整段是否完整落在同一块内"
+
+  - id: q011
+    type: summary
+    expected_advantage: header_aware
+    coverage_intent: none
+    query: "风险管控措施按优先顺序分为哪几类"
+    answer_spans:
+      - start_line: 128
+        end_line: 130
+    rationale: "分类枚举跨两段，后段是对各类的解释"
+
+  - id: q012
+    type: summary
+    expected_advantage: header_aware
+    coverage_intent: long_table, table_after_head
+    query: "隐患排查有哪些类型，分别由谁组织、多久开展一次"
+    answer_spans:
+      - start_line: 156
+        end_line: 164
+    rationale: "需同时用到表格前的总述段与整张表格，是表格切断的典型暴露点"
+
+  - id: q013
+    type: summary
+    expected_advantage: header_aware
+    coverage_intent: table_after_head
+    query: "各级人员在风险管控和隐患排查上分别承担什么职责"
+    answer_spans:
+      - start_line: 69
+        end_line: 77
+    rationale: "整张职责分工表作答（9 行），长表格切断的直接检验"
+
+  - id: q014
+    type: summary
+    expected_advantage: header_aware
+    coverage_intent: none
+    query: "相关方进入厂区作业前需要提交哪些材料"
+    answer_spans:
+      - start_line: 335
+        end_line: 337
+    rationale: "材料清单为单段枚举，但需连带协议要求才算完整"
+
+  # -------------------------------------------------------- table（5 条，预期结构化切块占优）
+  - id: q015
+    type: table
+    expected_advantage: header_aware
+    coverage_intent: long_table
+    query: "风险等级与危险性分值区间、管控层级是怎么对应的"
+    answer_spans:
+      - start_line: 117
+        end_line: 122
+    rationale: "整张风险等级表（含表头）作答，表格被切断即失败"
+
+  - id: q016
+    type: table
+    expected_advantage: header_aware
+    coverage_intent: long_table
+    query: "各类排查的组织层级与实施频次分别是多少"
+    answer_spans:
+      - start_line: 158
+        end_line: 164
+    rationale: "与 q012 同表但只问两列，用于区分『整表命中』与『列级命中』"
+
+  - id: q017
+    type: table
+    expected_advantage: header_aware
+    coverage_intent: long_table
+    query: "速查表里哪些危险源被判定为较大风险"
+    answer_spans:
+      - start_line: 401
+        end_line: 402
+    rationale: "附录 A 表中分散的两行，考察表中段的定位"
+
+  - id: q018
+    type: table
+    expected_advantage: header_aware
+    coverage_intent: long_table
+    query: "隐患排查清单模板都包含哪些字段"
+    answer_spans:
+      - start_line: 417
+        end_line: 426
+    rationale: "附录 B 字段模板表整体作答，表较长且字段名含英文"
+
+  - id: q019
+    type: table
+    expected_advantage: header_aware
+    coverage_intent: long_table
+    query: "不同培训对象的频次和学时要求分别是什么"
+    answer_spans:
+      - start_line: 279
+        end_line: 285
+    rationale: "培训频次表整体作答"
+
+  # ------------------------------------------------ cross_section（5 条，预期标题感知占优）
+  - id: q020
+    type: cross_section
+    expected_advantage: header_aware
+    coverage_intent: cross_ref
+    query: "重大隐患整改期间能不能继续生产，整改完成后由谁验收销号"
+    answer_spans:
+      - start_line: 190
+        end_line: 190
+      - start_line: 182
+        end_line: 186
+    rationale: "答案分属 4.6 与 4.5 两个相邻小节且顺序倒置，最能暴露块跨越章节边界"
+
+  - id: q021
+    type: cross_section
+    expected_advantage: header_aware
+    coverage_intent: cross_ref, short_section
+    query: "特殊作业的监护要求和作业中断后的处置分别在哪个环节规定"
+    answer_spans:
+      - start_line: 341
+        end_line: 341
+      - start_line: 347
+        end_line: 347
+    rationale: "答案横跨 9.2 与 9.3，且其中一处位于短小节"
+
+  - id: q022
+    type: cross_section
+    expected_advantage: header_aware
+    coverage_intent: cross_ref
+    query: "相关方准入由谁审核，属地部门在作业过程中又要管什么"
+    answer_spans:
+      - start_line: 335
+        end_line: 337
+      - start_line: 353
+        end_line: 353
+    rationale: "答案横跨 9.1 与 9.4，中间隔着两节无关内容，考察块边界而非块大小"
+
+  - id: q023
+    type: cross_section
+    expected_advantage: header_aware
+    coverage_intent: cross_ref
+    query: "隐患台账要记录哪些要素，这些数据后续用来做什么统计"
+    answer_spans:
+      - start_line: 178
+        end_line: 178
+      - start_line: 198
+        end_line: 198
+    rationale: "台账要素在 4.4、统计维度在 4.7，跨 3 个小节，是长距离跨章节用例"
+
+  - id: q024
+    type: cross_section
+    expected_advantage: header_aware
+    coverage_intent: cross_ref
+    query: "内部审核有什么回避要求，绩效评定又看哪些指标"
+    answer_spans:
+      - start_line: 303
+        end_line: 303
+      - start_line: 307
+        end_line: 307
+    rationale: "答案分属 7.1 与 7.2，用于验证相邻小节的边界处理是否稳定"
+
+  # ------------------------------------------------------ paraphrase（4 条，embedding 校准组）
+  - id: q025
+    type: paraphrase
+    expected_advantage: null
+    coverage_intent: heading_depth
+    query: "怎么把事故发生可能性、暴露程度和后果严重程度折算成一个分数"
+    answer_spans:
+      - start_line: 99
+        end_line: 101
+    rationale: "校准组：把『三项指标相乘』改写成『折算成一个分数』。若该组普遍失败，问题在 embedding 而非切块"
+
+  - id: q026
+    type: paraphrase
+    expected_advantage: null
+    coverage_intent: cross_ref
+    query: "现场解决不了的问题该怎么往上报"
+    answer_spans:
+      - start_line: 65
+        end_line: 65
+      - start_line: 180
+        end_line: 180
+    rationale: "校准组：原文说『超出班组能力的隐患应当在当班内上报』与『报监管部门备案』，措辞与提问差异大"
+
+  - id: q027
+    type: paraphrase
+    expected_advantage: null
+    coverage_intent: long_table
+    query: "新人入厂要先学什么，学多久"
+    answer_spans:
+      - start_line: 275
+        end_line: 275
+      - start_line: 284
+        end_line: 284
+    rationale: "校准组：原文为『三级安全教育』与表格中的『不少于 24 学时』，需跨正文与表格"
+
+  - id: q028
+    type: paraphrase
+    expected_advantage: null
+    coverage_intent: cross_ref
+    query: "怎么确保外来施工单位遵守厂区安全要求"
+    answer_spans:
+      - start_line: 337
+        end_line: 337
+      - start_line: 353
+        end_line: 353
+    rationale: "校准组：原文为『未签订协议不得进入厂区』与『立即制止、清退出厂』"
